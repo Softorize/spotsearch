@@ -49,9 +49,13 @@ function createWindow(): void {
   mainWindow.loadURL(indexUrl);
 
   mainWindow.on('blur', () => {
-    // Hide window when it loses focus
-    mainWindow?.hide();
-    mainWindow?.webContents.send('window:blur');
+    // Delay hide slightly to allow button clicks to complete
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide();
+        mainWindow.webContents.send('window:blur');
+      }
+    }, 100);
   });
 
   mainWindow.on('show', () => {

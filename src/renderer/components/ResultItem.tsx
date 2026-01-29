@@ -184,12 +184,11 @@ export const ResultItem = memo(function ResultItem({
           </button>
           <button
             className="action-button"
-            onMouseDown={(e) => {
+            onClick={(e) => {
               e.stopPropagation();
-              e.preventDefault();
               window.api.revealFile(result.path);
             }}
-            title="Reveal in Finder (⌘+Enter)"
+            title="Reveal in Finder"
           >
             Reveal
           </button>

@@ -1,6 +1,6 @@
 {
   "name": "spotsearch",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Advanced macOS file search app with menu bar integration",
   "main": ".vite/build/index.js",
   "scripts": {

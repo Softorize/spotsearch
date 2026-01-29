@@ -1,5 +1,5 @@
 import { shell, clipboard, app, nativeImage } from 'electron';
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
 import { stat } from 'fs/promises';
 import { join } from 'path';
 
@@ -11,7 +11,12 @@ export async function openFile(filePath: string): Promise<void> {
 }
 
 export function revealInFinder(filePath: string): void {
-  shell.showItemInFolder(filePath);
+  // Use AppleScript for reliable Finder reveal on macOS
+  const script = `tell application "Finder" to reveal POSIX file "${filePath}"
+tell application "Finder" to activate`;
+  exec(`osascript -e '${script.split('\n').join("' -e '")}'`, (err) => {
+    if (err) console.error('Reveal error:', err);
+  });
 }
 
 export function copyPath(filePath: string): void {
