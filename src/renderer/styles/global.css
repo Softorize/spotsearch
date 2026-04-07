@@ -72,13 +72,13 @@ body {
   border-bottom: 1px solid var(--border-color);
 }
 
-.search-icon {
+.search-logo {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
-  color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .spinner {

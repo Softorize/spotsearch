@@ -129,6 +129,7 @@ export const ResultItem = memo(function ResultItem({
 
   const size = result.data.size as number | undefined;
   const modifiedDate = result.data.modifiedDate as string | undefined;
+  const isApp = result.category === 'app';
 
   const showNativeIcon = NATIVE_ICON_CATEGORIES.has(result.category);
 
@@ -155,16 +156,20 @@ export const ResultItem = memo(function ResultItem({
             <span className="result-category-badge">{categoryBadge}</span>
           )}
         </div>
-        <div className="result-path">{truncatePath(result.subtitle)}</div>
-      </div>
-      <div className="result-meta">
-        {size !== undefined && (
-          <span className="result-size">{formatFileSize(size)}</span>
-        )}
-        {modifiedDate && (
-          <span className="result-date">{formatDate(modifiedDate)}</span>
+        {!isApp && result.subtitle && (
+          <div className="result-path">{truncatePath(result.subtitle)}</div>
         )}
       </div>
+      {!isApp && (
+        <div className="result-meta">
+          {size !== undefined && (
+            <span className="result-size">{formatFileSize(size)}</span>
+          )}
+          {modifiedDate && (
+            <span className="result-date">{formatDate(modifiedDate)}</span>
+          )}
+        </div>
+      )}
       {isSelected && result.actions.length > 0 && (
         <div className="result-actions">
           {result.actions.slice(0, 3).map((action) => (
