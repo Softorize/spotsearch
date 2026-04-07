@@ -84,6 +84,17 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('window:blur', handler);
   },
 
+  // Settings change with side effects (hotkey, theme, etc.)
+  applySetting: (key: string, value: unknown) => {
+    ipcRenderer.send('settings:apply', key, value);
+  },
+
+  onSettingsChanged: (callback: (settings: Settings) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, settings: Settings) => callback(settings);
+    ipcRenderer.on(IPC_CHANNELS.SETTINGS_CHANGED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.SETTINGS_CHANGED, handler);
+  },
+
   // Clipboard
   getClipboardHistory: () => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_GET),
   clearClipboardHistory: () => ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_CLEAR),
@@ -113,6 +124,8 @@ declare global {
       hideWindow: () => void;
       onWindowFocus: (callback: () => void) => () => void;
       onWindowBlur: (callback: () => void) => () => void;
+      applySetting: (key: string, value: unknown) => void;
+      onSettingsChanged: (callback: (settings: Settings) => void) => () => void;
       getClipboardHistory: () => Promise<Array<{ id: string; text: string; timestamp: number }>>;
       clearClipboardHistory: () => Promise<{ success: boolean }>;
       copyFromClipboardHistory: (id: string) => Promise<{ success: boolean }>;
