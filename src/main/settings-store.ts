@@ -11,6 +11,11 @@ const defaults: StoreSchema = {
     selectedFileTypes: ['all'],
     globalHotkey: 'Alt+Space',
     extension: '',
+    launchAtLogin: false,
+    showInDock: false,
+    maxResults: 100,
+    searchScope: '',
+    theme: 'system',
   },
 };
 
@@ -20,7 +25,7 @@ const store = new Store<StoreSchema>({
 });
 
 export function getSettings(): Settings {
-  return store.get('settings');
+  return { ...defaults.settings, ...store.get('settings') };
 }
 
 export function setSettings(settings: Partial<Settings>): Settings {
@@ -31,7 +36,7 @@ export function setSettings(settings: Partial<Settings>): Settings {
 }
 
 export function getSetting<K extends keyof Settings>(key: K): Settings[K] {
-  const settings = store.get('settings');
+  const settings = getSettings();
   return settings[key];
 }
 

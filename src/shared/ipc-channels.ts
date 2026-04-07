@@ -25,6 +25,9 @@ export const IPC_CHANNELS = {
   WINDOW_HIDE: 'window:hide',
   WINDOW_SHOW: 'window:show',
 
+  // Settings change notification (main -> renderer)
+  SETTINGS_CHANGED: 'settings:changed',
+
   // Clipboard
   CLIPBOARD_GET: 'clipboard:get',
   CLIPBOARD_CLEAR: 'clipboard:clear',

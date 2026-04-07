@@ -78,6 +78,11 @@ export interface Settings {
   selectedFileTypes: FileTypeFilter[];
   globalHotkey: string;
   extension: string;
+  launchAtLogin: boolean;
+  showInDock: boolean;
+  maxResults: number;
+  searchScope: string; // '' for everywhere, or a path
+  theme: 'system' | 'dark' | 'light';
 }
 
 export interface FileMetadata {
