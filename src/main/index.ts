@@ -75,7 +75,7 @@ function createTray(): void {
   const isDev = !!MAIN_WINDOW_VITE_DEV_SERVER_URL;
   const assetsPath = isDev
     ? join(app.getAppPath(), 'assets/icons')
-    : join(process.resourcesPath, 'assets/icons');
+    : join(process.resourcesPath, 'icons');
 
   // Try to load 2x version for Retina displays
   const icon2xPath = join(assetsPath, 'trayTemplate@2x.png');
