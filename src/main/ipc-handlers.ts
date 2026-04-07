@@ -84,7 +84,9 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | undefined): vo
     }
 
     currentQuery = options.query;
-    searchCoordinator.search(options.query);
+    searchCoordinator.search(options.query).catch((err) => {
+      console.error('Search error:', err);
+    });
   });
 
   ipcMain.on(IPC_CHANNELS.SEARCH_CANCEL, () => {

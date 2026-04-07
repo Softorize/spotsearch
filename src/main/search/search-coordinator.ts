@@ -38,7 +38,14 @@ export class SearchCoordinator extends EventEmitter {
       }
     }
 
-    const matchingProviders = this.providers.filter((p) => p.canHandle(query));
+    const matchingProviders = this.providers.filter((p) => {
+      try {
+        return p.canHandle(query);
+      } catch (err) {
+        console.error(`Provider ${p.id} canHandle error:`, err);
+        return false;
+      }
+    });
 
     if (matchingProviders.length === 0) {
       this.emit('complete', { count: 0, duration: 0 } as SearchStats);

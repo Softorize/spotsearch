@@ -201,6 +201,11 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
             {hotkeyStatus && (
               <div className="setting-status">{hotkeyStatus}</div>
             )}
+            {settings.globalHotkey === 'CommandOrControl+Space' && (
+              <div className="setting-warning">
+                Cmd+Space may conflict with macOS Spotlight. Disable Spotlight in System Settings {'>'} Keyboard {'>'} Shortcuts, or choose a different hotkey.
+              </div>
+            )}
           </div>
 
           {/* Search */}

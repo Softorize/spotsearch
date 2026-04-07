@@ -17,6 +17,15 @@ try {
   // Module not available in dev mode
 }
 
+// Prevent crashes from unhandled promise rejections and exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err);
+});
+
 let tray: Tray | null = null;
 let mainWindow: BrowserWindow | null = null;
 let isTogglingWindow = false;
@@ -132,24 +141,40 @@ export function getWindow(): BrowserWindow | undefined {
 function registerHotkey(shortcut: string): boolean {
   // Unregister previous shortcut
   if (currentShortcut) {
-    globalShortcut.unregister(currentShortcut);
+    try { globalShortcut.unregister(currentShortcut); } catch {}
     currentShortcut = null;
   }
 
   if (!shortcut) return false;
 
-  const registered = globalShortcut.register(shortcut, () => {
-    toggleWindow();
-  });
+  try {
+    const registered = globalShortcut.register(shortcut, () => {
+      toggleWindow();
+    });
 
-  if (registered) {
-    currentShortcut = shortcut;
-    console.log(`Shortcut registered: ${shortcut}`);
-  } else {
+    if (registered) {
+      currentShortcut = shortcut;
+      console.log(`Shortcut registered: ${shortcut}`);
+      return true;
+    }
+
     console.error(`Failed to register shortcut: ${shortcut}`);
-  }
 
-  return registered;
+    // If the requested shortcut failed, try the default as fallback
+    if (shortcut !== 'Alt+Space') {
+      console.log('Falling back to Alt+Space');
+      return registerHotkey('Alt+Space');
+    }
+
+    return false;
+  } catch (err) {
+    console.error(`Error registering shortcut ${shortcut}:`, err);
+    // Fallback to default
+    if (shortcut !== 'Alt+Space') {
+      return registerHotkey('Alt+Space');
+    }
+    return false;
+  }
 }
 
 function applyTheme(theme: string): void {

@@ -727,6 +727,15 @@ body {
   padding: 4px 0;
 }
 
+.setting-warning {
+  font-size: 11px;
+  color: #f59e0b;
+  padding: 6px 8px;
+  background: rgba(245, 158, 11, 0.1);
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
 /* Toggle Switch */
 .toggle-switch {
   position: relative;
