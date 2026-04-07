@@ -33,12 +33,27 @@ export function previewWithQuickLook(filePath: string): void {
   process.unref();
 }
 
+// Cache icons by path to avoid repeated IPC calls
+const iconCache = new Map<string, string>();
+
 export async function getFileIcon(filePath: string): Promise<string> {
+  const cached = iconCache.get(filePath);
+  if (cached !== undefined) return cached;
+
   try {
-    const icon = await app.getFileIcon(filePath, { size: 'normal' });
-    return icon.toDataURL();
+    const icon = await app.getFileIcon(filePath, { size: 'large' });
+    const dataUrl = icon.toDataURL();
+    iconCache.set(filePath, dataUrl);
+
+    // Cap cache size
+    if (iconCache.size > 500) {
+      const firstKey = iconCache.keys().next().value;
+      if (firstKey) iconCache.delete(firstKey);
+    }
+
+    return dataUrl;
   } catch {
-    // Return empty string if icon fetch fails
+    iconCache.set(filePath, '');
     return '';
   }
 }
