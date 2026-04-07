@@ -33,29 +33,50 @@ export function previewWithQuickLook(filePath: string): void {
   process.unref();
 }
 
-// Cache icons by path to avoid repeated IPC calls
+// Cache icons by path to avoid repeated calls
 const iconCache = new Map<string, string>();
 
-export async function getFileIcon(filePath: string): Promise<string> {
-  const cached = iconCache.get(filePath);
-  if (cached !== undefined) return cached;
+// Throttle concurrent icon fetches to prevent native thread pool exhaustion
+let activeIconFetches = 0;
+const MAX_CONCURRENT_ICONS = 5;
+const iconQueue: Array<{ filePath: string; resolve: (val: string) => void }> = [];
 
-  try {
-    const icon = await app.getFileIcon(filePath, { size: 'large' });
-    const dataUrl = icon.toDataURL();
-    iconCache.set(filePath, dataUrl);
+function processIconQueue(): void {
+  while (activeIconFetches < MAX_CONCURRENT_ICONS && iconQueue.length > 0) {
+    const item = iconQueue.shift()!;
+    activeIconFetches++;
 
-    // Cap cache size
-    if (iconCache.size > 500) {
-      const firstKey = iconCache.keys().next().value;
-      if (firstKey) iconCache.delete(firstKey);
-    }
-
-    return dataUrl;
-  } catch {
-    iconCache.set(filePath, '');
-    return '';
+    app.getFileIcon(item.filePath, { size: 'normal' })
+      .then((icon) => {
+        const dataUrl = icon.toDataURL();
+        iconCache.set(item.filePath, dataUrl);
+        item.resolve(dataUrl);
+      })
+      .catch(() => {
+        iconCache.set(item.filePath, '');
+        item.resolve('');
+      })
+      .finally(() => {
+        activeIconFetches--;
+        processIconQueue();
+      });
   }
+}
+
+export function getFileIcon(filePath: string): Promise<string> {
+  const cached = iconCache.get(filePath);
+  if (cached !== undefined) return Promise.resolve(cached);
+
+  // Cap cache size
+  if (iconCache.size > 500) {
+    const firstKey = iconCache.keys().next().value;
+    if (firstKey) iconCache.delete(firstKey);
+  }
+
+  return new Promise((resolve) => {
+    iconQueue.push({ filePath, resolve });
+    processIconQueue();
+  });
 }
 
 export async function getFileMetadata(
