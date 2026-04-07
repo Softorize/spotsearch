@@ -1,7 +1,7 @@
-import { clipboard, Notification } from 'electron';
+import { clipboard, Notification, shell } from 'electron';
 import { exec } from 'child_process';
-import { shell } from 'electron';
 import Store from 'electron-store';
+import { shellEscape } from '../../shared/shell-escape';
 
 export interface WorkflowStep {
   type: 'script' | 'open-url' | 'copy' | 'notification' | 'transform' | 'delay';
@@ -100,7 +100,7 @@ export async function executeWorkflow(workflow: Workflow, input?: string): Promi
   for (const step of workflow.steps) {
     switch (step.type) {
       case 'script': {
-        const command = (step.config.command || '').replace(/\{input\}/g, data);
+        const command = (step.config.command || '').replace(/\{input\}/g, shellEscape(data));
         data = await runScript(command);
         break;
       }

@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import type { SearchProvider } from '../search-provider';
 import type { UnifiedResult, ResultAction } from '../../../shared/types';
+import { scoreFuzzyMatch } from '../../../shared/scoring';
 
 interface MusicCommand {
   id: string;
@@ -106,32 +107,15 @@ export class MusicProvider implements SearchProvider {
   priority = 30;
 
   canHandle(query: string): boolean {
-    const q = query.trim().toLowerCase();
-    if (q.length < 2) return false;
-    return ALL_COMMANDS.some((cmd) =>
-      cmd.name.toLowerCase().includes(q) ||
-      cmd.keywords.some((kw) => kw.includes(q))
-    );
+    return query.trim().length >= 2;
   }
 
   async search(query: string): Promise<UnifiedResult[]> {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     const results: UnifiedResult[] = [];
 
     for (const cmd of ALL_COMMANDS) {
-      let score = 0;
-      const nameLower = cmd.name.toLowerCase();
-
-      if (nameLower === q) score = 1000;
-      else if (nameLower.startsWith(q)) score = 800;
-      else if (nameLower.includes(q)) score = 600;
-      else {
-        for (const kw of cmd.keywords) {
-          if (kw === q) { score = 900; break; }
-          if (kw.startsWith(q)) { score = Math.max(score, 700); }
-          if (kw.includes(q)) { score = Math.max(score, 400); }
-        }
-      }
+      const score = scoreFuzzyMatch(q, cmd.name, cmd.keywords);
 
       if (score > 0) {
         results.push({

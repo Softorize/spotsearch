@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import type { SearchProvider } from '../search-provider';
 import type { UnifiedResult, ResultAction } from '../../../shared/types';
+import { scoreFuzzyMatch } from '../../../shared/scoring';
 
 interface SystemCommand {
   id: string;
@@ -156,37 +157,15 @@ export class SystemCommandsProvider implements SearchProvider {
   priority = 20;
 
   canHandle(query: string): boolean {
-    const q = query.trim().toLowerCase();
-    if (q.length < 2) return false;
-
-    // Check if any command matches
-    return SYSTEM_COMMANDS.some((cmd) =>
-      cmd.name.toLowerCase().includes(q) ||
-      cmd.keywords.some((kw) => kw.includes(q))
-    );
+    return query.trim().length >= 2;
   }
 
   async search(query: string): Promise<UnifiedResult[]> {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     const results: UnifiedResult[] = [];
 
     for (const cmd of SYSTEM_COMMANDS) {
-      const nameLower = cmd.name.toLowerCase();
-      let score = 0;
-
-      // Check name match
-      if (nameLower === q) score = 1000;
-      else if (nameLower.startsWith(q)) score = 800;
-      else if (nameLower.includes(q)) score = 600;
-
-      // Check keyword matches
-      if (score === 0) {
-        for (const kw of cmd.keywords) {
-          if (kw === q) { score = 900; break; }
-          if (kw.startsWith(q)) { score = Math.max(score, 700); }
-          if (kw.includes(q)) { score = Math.max(score, 500); }
-        }
-      }
+      const score = scoreFuzzyMatch(q, cmd.name, cmd.keywords);
 
       if (score > 0) {
         const suffix = cmd.requiresConfirmation ? ' (requires confirmation)' : '';

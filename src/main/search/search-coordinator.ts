@@ -6,11 +6,9 @@ import { applyFrecencyBoost } from './frecency-store';
 export class SearchCoordinator extends EventEmitter {
   private providers: SearchProvider[] = [];
   private currentSearchId = 0;
-  private startTime = 0;
 
   registerProvider(provider: SearchProvider): void {
     this.providers.push(provider);
-    // Keep sorted by priority (lower = higher priority)
     this.providers.sort((a, b) => a.priority - b.priority);
     provider.initialize?.();
   }
@@ -29,14 +27,17 @@ export class SearchCoordinator extends EventEmitter {
 
   async search(query: string): Promise<void> {
     const searchId = ++this.currentSearchId;
-    this.startTime = Date.now();
+    const startTime = Date.now();
 
     if (!query.trim()) {
-      this.emit('complete', { count: 0, duration: 0 } as SearchStats);
-      return;
+      // For empty queries, still check providers (e.g., recent files)
+      const emptyProviders = this.providers.filter((p) => p.canHandle(query));
+      if (emptyProviders.length === 0) {
+        this.emit('complete', { count: 0, duration: 0 } as SearchStats);
+        return;
+      }
     }
 
-    // Find all providers that can handle this query
     const matchingProviders = this.providers.filter((p) => p.canHandle(query));
 
     if (matchingProviders.length === 0) {
@@ -44,43 +45,42 @@ export class SearchCoordinator extends EventEmitter {
       return;
     }
 
-    const allResults: UnifiedResult[] = [];
+    let totalResults = 0;
+    let completedProviders = 0;
 
-    // Run all matching providers concurrently
+    // Emit results progressively as each provider completes
     const providerPromises = matchingProviders.map(async (provider) => {
       try {
         const results = await provider.search(query);
 
-        // Check if this search is still current
         if (searchId !== this.currentSearchId) return;
 
-        allResults.push(...results);
+        // Apply frecency boost to this batch
+        applyFrecencyBoost(results, query);
+
+        // Sort this provider's results by score
+        results.sort((a, b) => b.score - a.score);
+
+        // Emit all results from this provider as a batch
+        for (const result of results) {
+          if (searchId !== this.currentSearchId) return;
+          totalResults++;
+          this.emit('result', result);
+        }
       } catch (error) {
         if (searchId !== this.currentSearchId) return;
         console.error(`Provider ${provider.id} error:`, error);
-        this.emit('error', `${provider.name}: ${(error as Error).message}`);
+      } finally {
+        completedProviders++;
       }
     });
 
     await Promise.allSettled(providerPromises);
 
-    // Only emit results if this search is still current
     if (searchId === this.currentSearchId) {
-      // Apply frecency boost to all results
-      applyFrecencyBoost(allResults, query);
-
-      // Sort by score descending
-      allResults.sort((a, b) => b.score - a.score);
-
-      // Emit results in sorted order
-      for (const result of allResults) {
-        if (searchId !== this.currentSearchId) return;
-        this.emit('result', result);
-      }
-
       const stats: SearchStats = {
-        count: allResults.length,
-        duration: Date.now() - this.startTime,
+        count: totalResults,
+        duration: Date.now() - startTime,
       };
       this.emit('complete', stats);
     }
@@ -91,7 +91,6 @@ export class SearchCoordinator extends EventEmitter {
   }
 
   async executeAction(result: UnifiedResult, actionId: string): Promise<void> {
-    // Find the provider that owns this result based on category mapping
     const provider = this.findProviderForResult(result);
     if (provider) {
       await provider.executeAction(result, actionId);
@@ -99,13 +98,10 @@ export class SearchCoordinator extends EventEmitter {
   }
 
   private findProviderForResult(result: UnifiedResult): SearchProvider | undefined {
-    // Try to find by provider ID stored in result data
     if (result.data._providerId) {
       const provider = this.providers.find((p) => p.id === result.data._providerId);
       if (provider) return provider;
     }
-
-    // Fallback: find first provider that has actions for this result
     return this.providers.find((p) => p.getActions(result).length > 0);
   }
 
@@ -117,5 +113,4 @@ export class SearchCoordinator extends EventEmitter {
   }
 }
 
-// Singleton instance
 export const searchCoordinator = new SearchCoordinator();

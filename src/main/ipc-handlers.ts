@@ -55,42 +55,35 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | undefined): vo
   searchCoordinator.registerProvider(new CalendarProvider());
   searchCoordinator.registerProvider(new MusicProvider());
 
-  // Search handlers - now using the coordinator
-  ipcMain.on(IPC_CHANNELS.SEARCH_START, (_event, options: SearchOptions) => {
+  // Set up coordinator listeners once (not per-search)
+  searchCoordinator.on('result', (result: UnifiedResult) => {
     const window = getWindow();
-    if (!window) return;
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.SEARCH_RESULT, result);
+    }
+  });
 
-    // Update file provider with current search options
+  searchCoordinator.on('complete', (stats: SearchStats) => {
+    const window = getWindow();
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.SEARCH_COMPLETE, stats);
+    }
+  });
+
+  searchCoordinator.on('error', (error: string) => {
+    const window = getWindow();
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.SEARCH_ERROR, error);
+    }
+  });
+
+  // Search handler
+  ipcMain.on(IPC_CHANNELS.SEARCH_START, (_event, options: SearchOptions) => {
     if (fileProvider) {
       fileProvider.setSearchOptions(options);
     }
 
-    // Remove previous listeners from coordinator
-    searchCoordinator.removeAllListeners();
-
-    // Set up listeners for this search
-    searchCoordinator.on('result', (result: UnifiedResult) => {
-      if (!window.isDestroyed()) {
-        window.webContents.send(IPC_CHANNELS.SEARCH_RESULT, result);
-      }
-    });
-
-    searchCoordinator.on('complete', (stats: SearchStats) => {
-      if (!window.isDestroyed()) {
-        window.webContents.send(IPC_CHANNELS.SEARCH_COMPLETE, stats);
-      }
-    });
-
-    searchCoordinator.on('error', (error: string) => {
-      if (!window.isDestroyed()) {
-        window.webContents.send(IPC_CHANNELS.SEARCH_ERROR, error);
-      }
-    });
-
-    // Track current query for frecency
     currentQuery = options.query;
-
-    // Start the search via coordinator
     searchCoordinator.search(options.query);
   });
 
@@ -190,6 +183,6 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | undefined): vo
 }
 
 // Export for registering additional providers from outside
-export function registerSearchProvider(provider: any): void {
+export function registerSearchProvider(provider: import('./search/search-provider').SearchProvider): void {
   searchCoordinator.registerProvider(provider);
 }

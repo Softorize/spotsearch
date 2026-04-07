@@ -85,10 +85,11 @@ export const useSearchStore = create<SearchState>((set, get) => ({
     set({ selectedFileTypes: newTypes });
   },
 
-  addResult: (result) =>
-    set((state) => ({
-      results: [...state.results, result],
-    })),
+  addResult: (result) => {
+    const { results } = get();
+    results.push(result);
+    set({ results: [...results] });
+  },
 
   clearResults: () => set({ results: [], stats: null, error: null, selectedIndex: 0 }),
 

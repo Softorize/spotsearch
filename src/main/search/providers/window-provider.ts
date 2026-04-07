@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import { screen, systemPreferences } from 'electron';
 import type { SearchProvider } from '../search-provider';
 import type { UnifiedResult, ResultAction } from '../../../shared/types';
+import { scoreFuzzyMatch } from '../../../shared/scoring';
 
 interface WindowCommand {
   id: string;
@@ -145,39 +146,19 @@ export class WindowProvider implements SearchProvider {
   priority = 25;
 
   canHandle(query: string): boolean {
-    const q = query.trim().toLowerCase();
-    if (q.length < 2) return false;
-
-    const commands = getWindowCommands();
-    return commands.some((cmd) =>
-      cmd.name.toLowerCase().includes(q) ||
-      cmd.keywords.some((kw) => kw.includes(q))
-    ) || q.startsWith('window ');
+    return query.trim().length >= 2;
   }
 
   async search(query: string): Promise<UnifiedResult[]> {
-    const q = query.trim().toLowerCase().replace(/^window\s+/, '');
+    const q = query.trim().replace(/^window\s+/i, '');
     const commands = getWindowCommands();
     const results: UnifiedResult[] = [];
+    const hasAccess = systemPreferences.isTrustedAccessibilityClient(false);
 
     for (const cmd of commands) {
-      const nameLower = cmd.name.toLowerCase();
-      let score = 0;
-
-      if (nameLower === q) score = 1000;
-      else if (nameLower.startsWith(q)) score = 800;
-      else if (nameLower.includes(q)) score = 600;
-
-      if (score === 0) {
-        for (const kw of cmd.keywords) {
-          if (kw === q) { score = 900; break; }
-          if (kw.startsWith(q)) { score = Math.max(score, 700); }
-          if (kw.includes(q)) { score = Math.max(score, 400); }
-        }
-      }
+      const score = scoreFuzzyMatch(q, cmd.name, cmd.keywords);
 
       if (score > 0) {
-        const hasAccess = systemPreferences.isTrustedAccessibilityClient(false);
         const subtitle = hasAccess
           ? cmd.description
           : cmd.description + ' (requires Accessibility permission)';

@@ -4,18 +4,13 @@ import type { SearchProvider } from '../search-provider';
 import type { UnifiedResult, ResultAction } from '../../../shared/types';
 
 function lookupWord(word: string): Promise<string | null> {
+  // Only allow alphanumeric + hyphens to prevent any injection
+  const sanitized = word.replace(/[^a-zA-Z0-9-]/g, '');
+  if (!sanitized) return Promise.resolve(null);
+
   return new Promise((resolve) => {
-    // Use Swift to access macOS Dictionary via DCSCopyTextDefinition
-    const swiftCode = `
-import CoreServices
-let word = "${word.replace(/"/g, '\\"')}"
-if let definition = DCSCopyTextDefinition(nil, word as CFString, CFRangeMake(0, word.count))?.takeRetainedValue() as String? {
-  print(definition)
-} else {
-  print("")
-}
-`;
-    exec(`swift -e '${swiftCode.replace(/'/g, "'\\''")}'`, { timeout: 3000 }, (err, stdout) => {
+    const swiftCode = `import CoreServices; let w = "${sanitized}"; if let d = DCSCopyTextDefinition(nil, w as CFString, CFRangeMake(0, w.count))?.takeRetainedValue() as String? { print(d) } else { print("") }`;
+    exec(`swift -e '${swiftCode}'`, { timeout: 3000 }, (err, stdout) => {
       if (err || !stdout.trim()) {
         resolve(null);
         return;

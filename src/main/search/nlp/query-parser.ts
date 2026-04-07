@@ -72,8 +72,6 @@ function parseTimeExpression(expr: string): string | null {
     if (lc.includes(months[i])) {
       const year = now.getFullYear();
       const startDate = new Date(year, i, 1).toISOString().split('T')[0];
-      const endDate = new Date(year, i + 1, 0).toISOString().split('T')[0];
-      // mdfind date format for explicit dates
       return startDate;
     }
   }
@@ -203,13 +201,21 @@ export function parseNaturalLanguageQuery(query: string): ParsedQuery {
   return result;
 }
 
+function escapeMdfindString(str: string): string {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\*/g, '\\*')
+    .replace(/\?/g, '\\?');
+}
+
 export function buildNlpMdfindQuery(parsed: ParsedQuery): string | null {
   if (!parsed.isNaturalLanguage) return null;
 
   const parts: string[] = [];
 
   if (parsed.nameQuery) {
-    parts.push(`kMDItemFSName == "*${parsed.nameQuery}*"c`);
+    parts.push(`kMDItemFSName == "*${escapeMdfindString(parsed.nameQuery)}*"c`);
   }
   if (parsed.contentTypeQuery) {
     parts.push(parsed.contentTypeQuery);
