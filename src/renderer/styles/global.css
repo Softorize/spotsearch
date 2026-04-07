@@ -301,6 +301,13 @@ body {
   font-size: 28px;
 }
 
+.icon-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+
 .result-info {
   flex: 1;
   min-width: 0;

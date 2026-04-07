@@ -77,6 +77,12 @@ function getCategoryBadge(category: string): string | null {
   }
 }
 
+// Client-side icon cache to avoid repeated IPC calls
+const iconCache = new Map<string, string>();
+
+// Categories that should load native icons
+const NATIVE_ICON_CATEGORIES = new Set(['file', 'app']);
+
 export const ResultItem = memo(function ResultItem({
   result,
   isSelected,
@@ -86,17 +92,25 @@ export const ResultItem = memo(function ResultItem({
 }: ResultItemProps) {
   const [nativeIcon, setNativeIcon] = useState<string | null>(null);
 
-  // Load native file icon for file results
   useEffect(() => {
-    if (result.category !== 'file' && result.category !== 'app') return;
+    if (!NATIVE_ICON_CATEGORIES.has(result.category)) return;
 
     const filePath = result.data.path as string;
     if (!filePath) return;
 
+    // Check client-side cache first
+    const cached = iconCache.get(filePath);
+    if (cached) {
+      setNativeIcon(cached);
+      return;
+    }
+
     let mounted = true;
 
     window.api.getFileIcon(filePath).then((iconData) => {
-      if (mounted && iconData) {
+      if (!mounted) return;
+      if (iconData) {
+        iconCache.set(filePath, iconData);
         setNativeIcon(iconData);
       }
     });
@@ -113,9 +127,10 @@ export const ResultItem = memo(function ResultItem({
 
   const categoryBadge = getCategoryBadge(result.category);
 
-  // For file results, show file metadata
   const size = result.data.size as number | undefined;
   const modifiedDate = result.data.modifiedDate as string | undefined;
+
+  const showNativeIcon = NATIVE_ICON_CATEGORIES.has(result.category);
 
   return (
     <div
@@ -127,6 +142,8 @@ export const ResultItem = memo(function ResultItem({
       <div className="result-icon">
         {nativeIcon ? (
           <img src={nativeIcon} alt="" width={32} height={32} />
+        ) : showNativeIcon ? (
+          <div className="icon-placeholder" />
         ) : (
           <span className="result-emoji-icon">{result.icon}</span>
         )}
