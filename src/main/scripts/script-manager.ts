@@ -3,6 +3,7 @@ import { join, extname } from 'path';
 import { homedir } from 'os';
 import { existsSync, mkdirSync } from 'fs';
 import { exec } from 'child_process';
+import { shellEscape } from '../../shared/shell-escape';
 
 export interface ScriptCommand {
   title: string;
@@ -106,7 +107,7 @@ export function executeScript(
   args: string[]
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const command = `${script.interpreter} "${script.filePath}" ${args.map((a) => `"${a}"`).join(' ')}`;
+    const command = `${script.interpreter} ${shellEscape(script.filePath)} ${args.map((a) => shellEscape(a)).join(' ')}`;
 
     exec(command, { timeout: 30000, cwd: homedir() }, (err, stdout, stderr) => {
       if (err && !stdout) {

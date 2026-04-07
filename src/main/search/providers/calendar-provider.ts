@@ -11,7 +11,16 @@ interface CalendarEvent {
   location?: string;
 }
 
+let eventsCache: CalendarEvent[] = [];
+let lastEventsFetch = 0;
+const EVENTS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
 function fetchUpcomingEvents(): Promise<CalendarEvent[]> {
+  const now = Date.now();
+  if (eventsCache.length > 0 && now - lastEventsFetch < EVENTS_CACHE_TTL) {
+    return Promise.resolve(eventsCache);
+  }
+
   return new Promise((resolve) => {
     const script = `
 const cal = Application('Calendar');
@@ -54,6 +63,8 @@ results.join('\\n');
             .filter((line) => line.trim())
             .map((line) => JSON.parse(line) as CalendarEvent);
           events.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+          eventsCache = events;
+          lastEventsFetch = Date.now();
           resolve(events);
         } catch {
           resolve([]);

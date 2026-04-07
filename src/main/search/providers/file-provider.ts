@@ -1,37 +1,31 @@
 import { spawn, ChildProcess } from 'child_process';
 import { stat } from 'fs/promises';
 import { basename, extname } from 'path';
-import { shell, clipboard, app } from 'electron';
-import { exec } from 'child_process';
 import type { SearchProvider } from '../search-provider';
-import type { UnifiedResult, ResultAction, SearchOptions, FileTypeFilter } from '../../../shared/types';
+import type { UnifiedResult, ResultAction, SearchOptions } from '../../../shared/types';
+import { getFileEmoji } from '../../../shared/file-icons';
 import { buildMdfindArgs } from '../query-builder';
+import {
+  openFile,
+  revealInFinder,
+  copyPath,
+  previewWithQuickLook,
+} from '../../file-actions';
 
-const FILE_ICON_MAP: Record<string, string> = {
-  pdf: '📕', doc: '📄', docx: '📄', txt: '📄', rtf: '📄', md: '📝',
-  jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', webp: '🖼️', heic: '🖼️', svg: '🖼️',
-  mp3: '🎵', wav: '🎵', m4a: '🎵', flac: '🎵',
-  mp4: '🎬', mov: '🎬', mkv: '🎬', avi: '🎬',
-  zip: '📦', tar: '📦', gz: '📦', rar: '📦', '7z': '📦',
-  js: '💻', ts: '💻', jsx: '💻', tsx: '💻', py: '💻', go: '💻',
-  rs: '💻', swift: '💻', java: '💻', c: '💻', cpp: '💻', h: '💻',
-  css: '🎨', scss: '🎨', html: '🌐',
-  json: '📋', xml: '📋', yaml: '📋', yml: '📋',
-};
-
-function getFileEmoji(ext: string, isDirectory: boolean): string {
-  if (isDirectory) return '📁';
-  return FILE_ICON_MAP[ext.toLowerCase()] || '📄';
-}
+const DEFAULT_FILE_ACTIONS: ResultAction[] = [
+  { id: 'open', name: 'Open', shortcut: 'Enter', isDefault: true },
+  { id: 'reveal', name: 'Reveal in Finder', shortcut: 'Cmd+Enter' },
+  { id: 'copy-path', name: 'Copy Path', shortcut: 'Cmd+C' },
+  { id: 'preview', name: 'Quick Look', shortcut: 'Space' },
+];
 
 export class FileProvider implements SearchProvider {
   id = 'file';
   name = 'Files';
-  priority = 50; // medium priority - apps and instant answers come first
+  priority = 50;
   private currentProcess: ChildProcess | null = null;
   private maxResults = 100;
 
-  // Store current search options for file type filtering
   private searchOptions: Partial<SearchOptions> = {};
 
   setSearchOptions(options: Partial<SearchOptions>): void {
@@ -39,13 +33,11 @@ export class FileProvider implements SearchProvider {
   }
 
   canHandle(query: string): boolean {
-    // File search handles everything that isn't a special prefix
     return query.trim().length > 0;
   }
 
   search(query: string): Promise<UnifiedResult[]> {
     return new Promise((resolve) => {
-      // Cancel any existing search
       this.cancelCurrentProcess();
 
       const options: SearchOptions = {
@@ -90,10 +82,10 @@ export class FileProvider implements SearchProvider {
               id: `file-${resultCount}`,
               name,
               subtitle: parentPath,
-              icon: getFileEmoji(extension, false), // will be replaced with native icon in renderer
+              icon: getFileEmoji(extension, false),
               category: 'file',
-              score: 100 - resultCount, // earlier results scored higher
-              actions: this.getDefaultFileActions(),
+              score: 100 - resultCount,
+              actions: DEFAULT_FILE_ACTIONS,
               data: {
                 _providerId: this.id,
                 path: filePath,
@@ -110,7 +102,6 @@ export class FileProvider implements SearchProvider {
       });
 
       this.currentProcess.on('close', () => {
-        // Process remaining buffer
         if (buffer.trim() && resultCount < this.maxResults) {
           resultCount++;
           const filePath = buffer.trim();
@@ -125,7 +116,7 @@ export class FileProvider implements SearchProvider {
             icon: getFileEmoji(extension, false),
             category: 'file',
             score: 100 - resultCount,
-            actions: this.getDefaultFileActions(),
+            actions: DEFAULT_FILE_ACTIONS,
             data: {
               _providerId: this.id,
               path: filePath,
@@ -136,8 +127,7 @@ export class FileProvider implements SearchProvider {
         }
 
         this.currentProcess = null;
-
-        // Enrich results with stat info asynchronously, but resolve immediately
+        // Enrich with stat info in background (mutates results for late renderers)
         this.enrichResults(results);
         resolve(results);
       });
@@ -150,8 +140,7 @@ export class FileProvider implements SearchProvider {
   }
 
   private async enrichResults(results: UnifiedResult[]): Promise<void> {
-    // Enrich with file stats in background (won't block search)
-    for (const result of results) {
+    const statPromises = results.map(async (result) => {
       try {
         const filePath = result.data.path as string;
         const stats = await stat(filePath);
@@ -164,21 +153,13 @@ export class FileProvider implements SearchProvider {
       } catch {
         // File might be inaccessible
       }
-    }
-  }
-
-  private getDefaultFileActions(): ResultAction[] {
-    return [
-      { id: 'open', name: 'Open', shortcut: 'Enter', isDefault: true },
-      { id: 'reveal', name: 'Reveal in Finder', shortcut: 'Cmd+Enter' },
-      { id: 'copy-path', name: 'Copy Path', shortcut: 'Cmd+C' },
-      { id: 'preview', name: 'Quick Look', shortcut: 'Space' },
-    ];
+    });
+    await Promise.all(statPromises);
   }
 
   getActions(result: UnifiedResult): ResultAction[] {
     if (result.category !== 'file') return [];
-    return this.getDefaultFileActions();
+    return DEFAULT_FILE_ACTIONS;
   }
 
   async executeAction(result: UnifiedResult, actionId: string): Promise<void> {
@@ -186,27 +167,18 @@ export class FileProvider implements SearchProvider {
     if (!filePath) return;
 
     switch (actionId) {
-      case 'open': {
-        const errorMsg = await shell.openPath(filePath);
-        if (errorMsg) throw new Error(errorMsg);
+      case 'open':
+        await openFile(filePath);
         break;
-      }
-      case 'reveal': {
-        const script = `tell application "Finder" to reveal POSIX file "${filePath}"\ntell application "Finder" to activate`;
-        exec(`osascript -e '${script.split('\n').join("' -e '")}'`);
+      case 'reveal':
+        revealInFinder(filePath);
         break;
-      }
       case 'copy-path':
-        clipboard.writeText(filePath);
+        copyPath(filePath);
         break;
-      case 'preview': {
-        const proc = spawn('qlmanage', ['-p', filePath], {
-          detached: true,
-          stdio: 'ignore',
-        });
-        proc.unref();
+      case 'preview':
+        previewWithQuickLook(filePath);
         break;
-      }
     }
   }
 

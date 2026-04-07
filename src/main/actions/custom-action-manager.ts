@@ -1,6 +1,7 @@
 import Store from 'electron-store';
 import { exec } from 'child_process';
 import { dirname, basename, extname } from 'path';
+import { shellEscape } from '../../shared/shell-escape';
 
 export interface CustomAction {
   id: string;
@@ -74,12 +75,14 @@ export function getActionsForFile(filePath: string): CustomAction[] {
 
 export function executeCustomAction(action: CustomAction, filePath: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    // Shell-escape all interpolated values to prevent injection
+    const escaped = shellEscape(filePath);
     const command = action.command
-      .replace(/\{filepath\}/g, filePath)
-      .replace(/\{filename\}/g, basename(filePath))
-      .replace(/\{directory\}/g, dirname(filePath))
-      .replace(/\{extension\}/g, extname(filePath).slice(1))
-      .replace(/\{basename\}/g, basename(filePath, extname(filePath)));
+      .replace(/\{filepath\}/g, escaped)
+      .replace(/\{filename\}/g, shellEscape(basename(filePath)))
+      .replace(/\{directory\}/g, shellEscape(dirname(filePath)))
+      .replace(/\{extension\}/g, shellEscape(extname(filePath).slice(1)))
+      .replace(/\{basename\}/g, shellEscape(basename(filePath, extname(filePath))));
 
     exec(command, { timeout: 10000 }, (err) => {
       if (err) reject(err);
