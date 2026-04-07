@@ -1,8 +1,8 @@
 import React, { memo, useEffect, useState } from 'react';
-import type { SearchResult } from '../../shared/types';
+import type { UnifiedResult } from '../../shared/types';
 
 interface ResultItemProps {
-  result: SearchResult;
+  result: UnifiedResult;
   isSelected: boolean;
   index: number;
   onClick: () => void;
@@ -42,68 +42,6 @@ function formatDate(dateString?: string): string {
   }
 }
 
-function getFileIcon(result: SearchResult): string {
-  if (result.isDirectory) return '📁';
-
-  const ext = result.extension.toLowerCase();
-
-  const iconMap: Record<string, string> = {
-    // Documents
-    pdf: '📕',
-    doc: '📄',
-    docx: '📄',
-    txt: '📄',
-    rtf: '📄',
-    md: '📝',
-    // Images
-    jpg: '🖼️',
-    jpeg: '🖼️',
-    png: '🖼️',
-    gif: '🖼️',
-    webp: '🖼️',
-    heic: '🖼️',
-    svg: '🖼️',
-    // Audio
-    mp3: '🎵',
-    wav: '🎵',
-    m4a: '🎵',
-    flac: '🎵',
-    // Video
-    mp4: '🎬',
-    mov: '🎬',
-    mkv: '🎬',
-    avi: '🎬',
-    // Archives
-    zip: '📦',
-    tar: '📦',
-    gz: '📦',
-    rar: '📦',
-    '7z': '📦',
-    // Code
-    js: '💻',
-    ts: '💻',
-    jsx: '💻',
-    tsx: '💻',
-    py: '💻',
-    go: '💻',
-    rs: '💻',
-    swift: '💻',
-    java: '💻',
-    c: '💻',
-    cpp: '💻',
-    h: '💻',
-    css: '🎨',
-    scss: '🎨',
-    html: '🌐',
-    json: '📋',
-    xml: '📋',
-    yaml: '📋',
-    yml: '📋',
-  };
-
-  return iconMap[ext] || '📄';
-}
-
 function truncatePath(path: string, maxLength: number = 60): string {
   if (path.length <= maxLength) return path;
 
@@ -118,6 +56,27 @@ function truncatePath(path: string, maxLength: number = 60): string {
   return truncated;
 }
 
+function getCategoryBadge(category: string): string | null {
+  switch (category) {
+    case 'app': return 'App';
+    case 'calculator': return 'Calc';
+    case 'dictionary': return 'Dict';
+    case 'contact': return 'Contact';
+    case 'system-command': return 'System';
+    case 'clipboard': return 'Clipboard';
+    case 'snippet': return 'Snippet';
+    case 'quicklink': return 'Link';
+    case 'bookmark': return 'Bookmark';
+    case 'emoji': return 'Emoji';
+    case 'calendar': return 'Calendar';
+    case 'music': return 'Music';
+    case 'script': return 'Script';
+    case 'workflow': return 'Workflow';
+    case 'window-management': return 'Window';
+    default: return null;
+  }
+}
+
 export const ResultItem = memo(function ResultItem({
   result,
   isSelected,
@@ -125,24 +84,38 @@ export const ResultItem = memo(function ResultItem({
   onClick,
   onDoubleClick,
 }: ResultItemProps) {
-  const [icon, setIcon] = useState<string | null>(null);
+  const [nativeIcon, setNativeIcon] = useState<string | null>(null);
 
-  // Load native file icon
+  // Load native file icon for file results
   useEffect(() => {
+    if (result.category !== 'file' && result.category !== 'app') return;
+
+    const filePath = result.data.path as string;
+    if (!filePath) return;
+
     let mounted = true;
 
-    window.api.getFileIcon(result.path).then((iconData) => {
+    window.api.getFileIcon(filePath).then((iconData) => {
       if (mounted && iconData) {
-        setIcon(iconData);
+        setNativeIcon(iconData);
       }
     });
 
     return () => {
       mounted = false;
     };
-  }, [result.path]);
+  }, [result.data.path, result.category]);
 
-  const parentPath = result.path.replace(`/${result.name}`, '');
+  const handleAction = async (actionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await window.api.executeAction(result, actionId);
+  };
+
+  const categoryBadge = getCategoryBadge(result.category);
+
+  // For file results, show file metadata
+  const size = result.data.size as number | undefined;
+  const modifiedDate = result.data.modifiedDate as string | undefined;
 
   return (
     <div
@@ -152,56 +125,41 @@ export const ResultItem = memo(function ResultItem({
       onDoubleClick={onDoubleClick}
     >
       <div className="result-icon">
-        {icon ? (
-          <img src={icon} alt="" width={32} height={32} />
+        {nativeIcon ? (
+          <img src={nativeIcon} alt="" width={32} height={32} />
         ) : (
-          <span className="result-emoji-icon">{getFileIcon(result)}</span>
+          <span className="result-emoji-icon">{result.icon}</span>
         )}
       </div>
       <div className="result-info">
-        <div className="result-name">{result.name}</div>
-        <div className="result-path">{truncatePath(parentPath)}</div>
+        <div className="result-name">
+          {result.name}
+          {categoryBadge && (
+            <span className="result-category-badge">{categoryBadge}</span>
+          )}
+        </div>
+        <div className="result-path">{truncatePath(result.subtitle)}</div>
       </div>
       <div className="result-meta">
-        {result.size !== undefined && (
-          <span className="result-size">{formatFileSize(result.size)}</span>
+        {size !== undefined && (
+          <span className="result-size">{formatFileSize(size)}</span>
         )}
-        {result.modifiedDate && (
-          <span className="result-date">{formatDate(result.modifiedDate)}</span>
+        {modifiedDate && (
+          <span className="result-date">{formatDate(modifiedDate)}</span>
         )}
       </div>
-      {isSelected && (
+      {isSelected && result.actions.length > 0 && (
         <div className="result-actions">
-          <button
-            className="action-button"
-            onClick={async (e) => {
-              e.stopPropagation();
-              await window.api.openFile(result.path);
-            }}
-            title="Open (Enter)"
-          >
-            Open
-          </button>
-          <button
-            className="action-button"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.api.revealFile(result.path);
-            }}
-            title="Reveal in Finder"
-          >
-            Reveal
-          </button>
-          <button
-            className="action-button"
-            onClick={async (e) => {
-              e.stopPropagation();
-              await window.api.copyPath(result.path);
-            }}
-            title="Copy Path"
-          >
-            Copy
-          </button>
+          {result.actions.slice(0, 3).map((action) => (
+            <button
+              key={action.id}
+              className="action-button"
+              onClick={(e) => handleAction(action.id, e)}
+              title={action.shortcut ? `${action.name} (${action.shortcut})` : action.name}
+            >
+              {action.name}
+            </button>
+          ))}
         </div>
       )}
     </div>

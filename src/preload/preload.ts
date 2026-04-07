@@ -1,11 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../shared/ipc-channels';
-import type { SearchOptions, SearchResult, SearchStats, Settings } from '../shared/types';
+import type { SearchOptions, UnifiedResult, SearchStats, Settings } from '../shared/types';
 
 // Expose protected methods that allow the renderer process to use
 // ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('api', {
-  // Search
+  // Search (unified provider system)
   search: (options: SearchOptions) => {
     ipcRenderer.send(IPC_CHANNELS.SEARCH_START, options);
   },
@@ -14,8 +14,8 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.send(IPC_CHANNELS.SEARCH_CANCEL);
   },
 
-  onSearchResult: (callback: (result: SearchResult) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, result: SearchResult) =>
+  onSearchResult: (callback: (result: UnifiedResult) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, result: UnifiedResult) =>
       callback(result);
     ipcRenderer.on(IPC_CHANNELS.SEARCH_RESULT, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.SEARCH_RESULT, handler);
@@ -35,7 +35,11 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.SEARCH_ERROR, handler);
   },
 
-  // File actions
+  // Action execution (unified)
+  executeAction: (result: UnifiedResult, actionId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ACTION_EXECUTE, result, actionId),
+
+  // File actions (kept for direct keyboard shortcuts)
   openFile: (filePath: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.FILE_OPEN, filePath),
 
@@ -92,9 +96,10 @@ declare global {
     api: {
       search: (options: SearchOptions) => void;
       cancelSearch: () => void;
-      onSearchResult: (callback: (result: SearchResult) => void) => () => void;
+      onSearchResult: (callback: (result: UnifiedResult) => void) => () => void;
       onSearchComplete: (callback: (stats: SearchStats) => void) => () => void;
       onSearchError: (callback: (error: string) => void) => () => void;
+      executeAction: (result: UnifiedResult, actionId: string) => Promise<{ success: boolean; error?: string }>;
       openFile: (filePath: string) => Promise<{ success: boolean; error?: string }>;
       revealFile: (filePath: string) => Promise<{ success: boolean }>;
       copyPath: (filePath: string) => Promise<{ success: boolean }>;

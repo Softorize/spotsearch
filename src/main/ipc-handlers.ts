@@ -1,7 +1,24 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from '../shared/ipc-channels';
-import type { SearchOptions, SearchResult, SearchStats } from '../shared/types';
-import { searchEngine } from './search/search-engine';
+import type { SearchOptions, UnifiedResult, SearchStats } from '../shared/types';
+import { searchCoordinator } from './search/search-coordinator';
+import { recordInteraction } from './search/frecency-store';
+import { FileProvider } from './search/providers/file-provider';
+import { AppProvider } from './search/providers/app-provider';
+import { CalculatorProvider } from './search/providers/calculator-provider';
+import { DictionaryProvider } from './search/providers/dictionary-provider';
+import { ContactsProvider } from './search/providers/contacts-provider';
+import { SystemCommandsProvider } from './search/providers/system-commands-provider';
+import { QuickLinkProvider } from './search/providers/quicklink-provider';
+import { EmojiProvider } from './search/providers/emoji-provider';
+import { BookmarkProvider } from './search/providers/bookmark-provider';
+import { WindowProvider } from './search/providers/window-provider';
+import { SnippetProvider } from './search/providers/snippet-provider';
+import { RecentFilesProvider } from './search/providers/recent-files-provider';
+import { ScriptProvider } from './search/providers/script-provider';
+import { WorkflowProvider } from './search/providers/workflow-provider';
+import { CalendarProvider } from './search/providers/calendar-provider';
+import { MusicProvider } from './search/providers/music-provider';
 import {
   openFile,
   revealInFinder,
@@ -13,43 +30,87 @@ import {
 import { getSettings, setSettings, getSetting, setSetting } from './settings-store';
 import { getClipboardHistory, clearClipboardHistory, copyFromHistory } from './clipboard-monitor';
 
+// Keep a reference to the file provider so we can update its options
+let fileProvider: FileProvider | null = null;
+// Track current query for frecency recording
+let currentQuery = '';
+
 export function setupIpcHandlers(getWindow: () => BrowserWindow | undefined): void {
-  // Search handlers
-  ipcMain.on(IPC_CHANNELS.SEARCH_START, (event, options: SearchOptions) => {
+  // Initialize and register all providers
+  fileProvider = new FileProvider();
+  searchCoordinator.registerProvider(fileProvider);
+  searchCoordinator.registerProvider(new AppProvider());
+  searchCoordinator.registerProvider(new CalculatorProvider());
+  searchCoordinator.registerProvider(new DictionaryProvider());
+  searchCoordinator.registerProvider(new ContactsProvider());
+  searchCoordinator.registerProvider(new SystemCommandsProvider());
+  searchCoordinator.registerProvider(new QuickLinkProvider());
+  searchCoordinator.registerProvider(new EmojiProvider());
+  searchCoordinator.registerProvider(new BookmarkProvider());
+  searchCoordinator.registerProvider(new WindowProvider());
+  searchCoordinator.registerProvider(new SnippetProvider());
+  searchCoordinator.registerProvider(new RecentFilesProvider());
+  searchCoordinator.registerProvider(new ScriptProvider());
+  searchCoordinator.registerProvider(new WorkflowProvider());
+  searchCoordinator.registerProvider(new CalendarProvider());
+  searchCoordinator.registerProvider(new MusicProvider());
+
+  // Search handlers - now using the coordinator
+  ipcMain.on(IPC_CHANNELS.SEARCH_START, (_event, options: SearchOptions) => {
     const window = getWindow();
     if (!window) return;
 
-    // Remove previous listeners
-    searchEngine.removeAllListeners();
+    // Update file provider with current search options
+    if (fileProvider) {
+      fileProvider.setSearchOptions(options);
+    }
 
-    // Set up new listeners for this search
-    searchEngine.on('result', (result: SearchResult) => {
+    // Remove previous listeners from coordinator
+    searchCoordinator.removeAllListeners();
+
+    // Set up listeners for this search
+    searchCoordinator.on('result', (result: UnifiedResult) => {
       if (!window.isDestroyed()) {
         window.webContents.send(IPC_CHANNELS.SEARCH_RESULT, result);
       }
     });
 
-    searchEngine.on('complete', (stats: SearchStats) => {
+    searchCoordinator.on('complete', (stats: SearchStats) => {
       if (!window.isDestroyed()) {
         window.webContents.send(IPC_CHANNELS.SEARCH_COMPLETE, stats);
       }
     });
 
-    searchEngine.on('error', (error: string) => {
+    searchCoordinator.on('error', (error: string) => {
       if (!window.isDestroyed()) {
         window.webContents.send(IPC_CHANNELS.SEARCH_ERROR, error);
       }
     });
 
-    // Start the search
-    searchEngine.search(options);
+    // Track current query for frecency
+    currentQuery = options.query;
+
+    // Start the search via coordinator
+    searchCoordinator.search(options.query);
   });
 
   ipcMain.on(IPC_CHANNELS.SEARCH_CANCEL, () => {
-    searchEngine.cancel();
+    searchCoordinator.cancel();
   });
 
-  // File action handlers
+  // Action execution handler
+  ipcMain.handle(IPC_CHANNELS.ACTION_EXECUTE, async (_event, result: UnifiedResult, actionId: string) => {
+    try {
+      await searchCoordinator.executeAction(result, actionId);
+      // Record interaction for frecency
+      recordInteraction(result.id, currentQuery);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  // File action handlers (kept for backward compatibility and direct keyboard shortcuts)
   ipcMain.handle(IPC_CHANNELS.FILE_OPEN, async (_event, filePath: string) => {
     try {
       await openFile(filePath);
@@ -126,4 +187,9 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | undefined): vo
   ipcMain.handle(IPC_CHANNELS.CLIPBOARD_COPY, (_event, id: string) => {
     return { success: copyFromHistory(id) };
   });
+}
+
+// Export for registering additional providers from outside
+export function registerSearchProvider(provider: any): void {
+  searchCoordinator.registerProvider(provider);
 }
