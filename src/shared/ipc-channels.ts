@@ -1,12 +1,15 @@
 export const IPC_CHANNELS = {
-  // Search
+  // Search (unified provider system)
   SEARCH_START: 'search:start',
   SEARCH_RESULT: 'search:result',
   SEARCH_COMPLETE: 'search:complete',
   SEARCH_CANCEL: 'search:cancel',
   SEARCH_ERROR: 'search:error',
 
-  // File actions
+  // Action execution
+  ACTION_EXECUTE: 'action:execute',
+
+  // File actions (used by file provider & keyboard nav)
   FILE_OPEN: 'file:open',
   FILE_REVEAL: 'file:reveal',
   FILE_COPY_PATH: 'file:copy-path',

@@ -40,11 +40,21 @@ export function useKeyboardNav({ inputRef, listRef }: UseKeyboardNavOptions) {
           if (selected) {
             event.preventDefault();
             if (event.metaKey || event.ctrlKey) {
-              // Cmd+Enter: Reveal in Finder
-              await window.api.revealFile(selected.path);
+              // Cmd+Enter: execute second action (usually "Reveal in Finder" for files)
+              const secondAction = selected.actions.find((a) => a.shortcut === 'Cmd+Enter');
+              if (secondAction) {
+                await window.api.executeAction(selected, secondAction.id);
+              } else if (selected.category === 'file') {
+                await window.api.revealFile(selected.data.path as string);
+              }
             } else {
-              // Enter: Open file
-              await window.api.openFile(selected.path);
+              // Enter: execute default action
+              const defaultAction = selected.actions.find((a) => a.isDefault);
+              if (defaultAction) {
+                await window.api.executeAction(selected, defaultAction.id);
+              } else if (selected.category === 'file') {
+                await window.api.openFile(selected.data.path as string);
+              }
             }
           }
           break;
@@ -53,7 +63,15 @@ export function useKeyboardNav({ inputRef, listRef }: UseKeyboardNavOptions) {
           // Space: QuickLook preview (only when not typing in input)
           if (document.activeElement !== inputRef.current && selected) {
             event.preventDefault();
-            await window.api.previewFile(selected.path);
+            if (selected.category === 'file') {
+              await window.api.previewFile(selected.data.path as string);
+            } else {
+              // For non-file results, try the 'preview' action
+              const previewAction = selected.actions.find((a) => a.id === 'preview');
+              if (previewAction) {
+                await window.api.executeAction(selected, previewAction.id);
+              }
+            }
           }
           break;
 
@@ -101,6 +119,19 @@ export function useKeyboardNav({ inputRef, listRef }: UseKeyboardNavOptions) {
         case 'PageUp':
           event.preventDefault();
           setSelectedIndex(Math.max(selectedIndex - 10, 0));
+          break;
+
+        case 'c':
+          // Cmd+C: copy path for file results
+          if ((event.metaKey || event.ctrlKey) && selected && document.activeElement !== inputRef.current) {
+            event.preventDefault();
+            const copyAction = selected.actions.find((a) => a.id === 'copy-path' || a.id === 'copy');
+            if (copyAction) {
+              await window.api.executeAction(selected, copyAction.id);
+            } else if (selected.category === 'file') {
+              await window.api.copyPath(selected.data.path as string);
+            }
+          }
           break;
 
         default:

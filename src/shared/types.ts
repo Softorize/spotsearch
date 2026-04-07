@@ -1,3 +1,42 @@
+// Result categories for the multi-provider search system
+export type ResultCategory =
+  | 'file'
+  | 'app'
+  | 'calculator'
+  | 'dictionary'
+  | 'contact'
+  | 'system-command'
+  | 'clipboard'
+  | 'snippet'
+  | 'quicklink'
+  | 'bookmark'
+  | 'emoji'
+  | 'calendar'
+  | 'music'
+  | 'script'
+  | 'workflow'
+  | 'window-management';
+
+// Unified result type used across all providers
+export interface UnifiedResult {
+  id: string;
+  name: string;
+  subtitle: string;
+  icon: string; // emoji, base64 data URL, or file path
+  category: ResultCategory;
+  score: number; // higher = shown first
+  actions: ResultAction[];
+  data: Record<string, unknown>; // category-specific payload
+}
+
+export interface ResultAction {
+  id: string;
+  name: string;
+  shortcut?: string; // e.g. "Cmd+Enter"
+  isDefault?: boolean;
+}
+
+// Legacy file search result (used internally by file provider)
 export interface SearchResult {
   id: string;
   path: string;
@@ -14,6 +53,8 @@ export interface SearchOptions {
   exactMatch: boolean;
   fileTypes: FileTypeFilter[];
   extension?: string;
+  contentSearch?: boolean;
+  scope?: string;
 }
 
 export type FileTypeFilter =

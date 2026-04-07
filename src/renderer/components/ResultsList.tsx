@@ -2,10 +2,10 @@ import React, { forwardRef, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useSearchStore } from '../store/searchStore';
 import { ResultItem } from './ResultItem';
-import type { SearchResult } from '../../shared/types';
+import type { UnifiedResult } from '../../shared/types';
 
 interface ResultsListProps {
-  results: SearchResult[];
+  results: UnifiedResult[];
   isSearching: boolean;
 }
 
@@ -29,8 +29,15 @@ export const ResultsList = forwardRef<HTMLDivElement, ResultsListProps>(
       [setSelectedIndex]
     );
 
-    const handleItemDoubleClick = useCallback(async (result: SearchResult) => {
-      await window.api.openFile(result.path);
+    const handleItemDoubleClick = useCallback(async (result: UnifiedResult) => {
+      // Execute the default action
+      const defaultAction = result.actions.find((a) => a.isDefault);
+      if (defaultAction) {
+        await window.api.executeAction(result, defaultAction.id);
+      } else if (result.category === 'file') {
+        // Fallback for file results
+        await window.api.openFile(result.data.path as string);
+      }
     }, []);
 
     if (results.length === 0 && !isSearching) {
@@ -39,7 +46,7 @@ export const ResultsList = forwardRef<HTMLDivElement, ResultsListProps>(
           <div className="empty-icon">🔍</div>
           <div className="empty-text">
             {useSearchStore.getState().query
-              ? 'No files found'
+              ? 'No results found'
               : 'Start typing to search'}
           </div>
           <div className="empty-hint">

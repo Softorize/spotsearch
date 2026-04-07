@@ -308,11 +308,27 @@ body {
 }
 
 .result-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.result-category-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--accent-color);
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
 }
 
 .result-path {

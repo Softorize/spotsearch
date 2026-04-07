@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SearchResult, FileTypeFilter, SearchStats } from '../../shared/types';
+import type { UnifiedResult, FileTypeFilter, SearchStats } from '../../shared/types';
 
 interface SearchState {
   // Query state
@@ -8,8 +8,8 @@ interface SearchState {
   selectedFileTypes: FileTypeFilter[];
   extension: string;
 
-  // Results
-  results: SearchResult[];
+  // Results (now unified)
+  results: UnifiedResult[];
   isSearching: boolean;
   stats: SearchStats | null;
   error: string | null;
@@ -24,7 +24,7 @@ interface SearchState {
   toggleFileType: (type: FileTypeFilter) => void;
   setExtension: (extension: string) => void;
 
-  addResult: (result: SearchResult) => void;
+  addResult: (result: UnifiedResult) => void;
   clearResults: () => void;
   setIsSearching: (isSearching: boolean) => void;
   setStats: (stats: SearchStats | null) => void;
@@ -42,7 +42,7 @@ const initialState = {
   exactMatch: false,
   selectedFileTypes: ['all'] as FileTypeFilter[],
   extension: '',
-  results: [] as SearchResult[],
+  results: [] as UnifiedResult[],
   isSearching: false,
   stats: null,
   error: null,

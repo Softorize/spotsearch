@@ -53,7 +53,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
           ref={ref}
           type="text"
           className="search-input"
-          placeholder="Search files..."
+          placeholder="Search anything..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus
