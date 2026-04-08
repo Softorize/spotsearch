@@ -263,7 +263,7 @@ export function SettingsPanel({ isOpen, onClose }: Props) {
             <h3 className="settings-section-title">About</h3>
             <div className="about-info">
               <span className="about-name">SpotSearch</span>
-              <span className="about-version">v1.4.0</span>
+              <span className="about-version">v2.0.0</span>
             </div>
             <div className="about-hint">
               Press the activation hotkey to toggle the search bar.
